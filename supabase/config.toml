@@ -1,0 +1,10 @@
+# Edge Function configuration — ONLY used when deploying with Supabase CLI.
+# Copy/paste or Dashboard edits do NOT read this file; set JWT in the Dashboard instead (below).
+#
+# Dashboard-only: Project → Edge Functions → select your function → disable "Verify JWT"
+# (Twilio webhooks have no Supabase JWT). https://supabase.com/docs/guides/functions/function-configuration
+#
+# Folder name must match the deployed slug (Twilio / clients use this URL path).
+
+[functions.make-server-8c22500c]
+verify_jwt = false

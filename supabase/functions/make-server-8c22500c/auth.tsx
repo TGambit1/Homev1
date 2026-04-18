@@ -1,6 +1,6 @@
 import { Hono } from "npm:hono";
 import * as db from "./db.tsx";
-import { clearSessionPartnerRole, setSessionPartnerRole } from "./session-role.tsx";
+import { clearSessionPartnerRole, getSessionPartnerRole, setSessionPartnerRole } from "./session-role.tsx";
 
 const app = new Hono();
 
@@ -137,8 +137,6 @@ app.post('/make-server-8c22500c/auth/login', async (c) => {
     
     return c.json({
       success: true,
-    return c.json({ 
-      success: true, 
       sessionToken,
       user: {
         userId: userData.id,
@@ -210,6 +208,7 @@ app.post('/make-server-8c22500c/auth/accept-partner-invite', async (c) => {
       token: sessionToken,
       expires_at: expiresAt,
     });
+    await setSessionPartnerRole(sessionToken, 'person2');
 
     const fresh = await db.getUserById(accountId);
     if (!fresh) return c.json({ error: 'Account not found' }, 404);
@@ -262,12 +261,15 @@ app.get('/make-server-8c22500c/auth/verify', async (c) => {
       return c.json({ authenticated: false }, 401);
     }
     
+    const loggedInAs = await getSessionPartnerRole(sessionToken) ?? 'person1';
+
     return c.json({
       authenticated: true,
       user: {
         userId: userData.id,
         primaryEmail: userData.primary_email,
         secondaryEmail: userData.secondary_email || '',
+        loggedInAs,
         person1Name: userData.person1_name,
         person2Name: userData.person2_name,
         person1Phone: userData.person1_phone,
@@ -279,17 +281,6 @@ app.get('/make-server-8c22500c/auth/verify', async (c) => {
         person2AvatarUrl: userData.person2_avatar_url,
         person2DateOfBirth: userData.person2_date_of_birth,
         person2Location: userData.person2_location,
-    return c.json({ 
-      authenticated: true,
-      user: {
-        userId: userData.id,
-      primaryEmail: userData.primary_email,
-      secondaryEmail: userData.secondary_email || '',
-        person1Name: userData.person1_name,
-        person2Name: userData.person2_name,
-        person1Phone: userData.person1_phone,
-        person2Phone: userData.person2_phone,
-        relationshipName: userData.relationship_name,
       }
     });
   } catch (error) {

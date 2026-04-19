@@ -5,7 +5,6 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
-import { svg2png } from "jsr:@hugojosefson/svg2png";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -211,8 +210,9 @@ function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
-/** Convert SVG string to PNG bytes. Pass font buffer so resvg can render text (WASM does not use @font-face from SVG). */
+/** Convert SVG string to PNG bytes. Dynamic import keeps WASM out of the boot path. */
 async function svgToPng(svgString: string, fontBuffer: Uint8Array): Promise<Uint8Array> {
+  const { svg2png } = await import("jsr:@hugojosefson/svg2png");
   const pngBytes = await svg2png(svgString, {
     fitTo: { mode: "width", value: 500 },
     font: {

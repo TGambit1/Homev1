@@ -6,7 +6,7 @@ import { sendTwilioSMS } from "./twilio-handler.tsx";
 
 const app = new Hono();
 
-const APP_URL = "https://homebaseuxv12.vercel.app/";
+const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("PUBLIC_APP_URL") || "https://v0-homebase-app-clone.vercel.app/";
 
 function getBearerToken(c: { req: { header: (n: string) => string | undefined } }): string | null {
   const header = c.req.header("Authorization") || "";

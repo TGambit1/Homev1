@@ -10,7 +10,7 @@ interface OptionCProps {
 
 export default function OptionC({ onSettingsClick, theme = 'light', accentColor = '#7eb6eb' }: OptionCProps) {
   const isDark = theme === 'dark';
-  const twilioHelperNumberE164 = '+18446707482';
+  const twilioHelperNumberE164 = '+12014855992';
   
   return (
     <div className={`size-full overflow-y-auto overflow-x-hidden ${

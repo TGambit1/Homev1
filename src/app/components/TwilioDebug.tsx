@@ -115,7 +115,7 @@ export function TwilioDebug({ onClose, onOpenCalendarSettings }: TwilioDebugProp
       <div className="mb-8">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-xl text-center shadow-lg">
           <p className="text-white text-sm font-medium mb-2">Then text Homebase at:</p>
-          <p className="text-4xl font-bold text-white mb-3">+18446707482</p>
+          <p className="text-4xl font-bold text-white mb-3">+12014855992</p>
           <p className="text-blue-100 text-sm">
             Make sure you've added your phone number in Settings first!
           </p>

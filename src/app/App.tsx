@@ -30,14 +30,14 @@ const USE_CALENDAR_IMAGE = false;
 const THEME_STORAGE_KEY = "homebase-ui-theme";
 
 function readStoredTheme(): "light" | "dark" | "auto" {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   try {
-    const v = localStorage.getItem(THEME_STORAGE_KEY);
-    if (v === "dark" || v === "light" || v === "auto") return v;
+    // Always dark — clear any old light preference
+    localStorage.setItem(THEME_STORAGE_KEY, "dark");
   } catch {
     /* ignore */
   }
-  return "light";
+  return "dark";
 }
 
 export default function App() {

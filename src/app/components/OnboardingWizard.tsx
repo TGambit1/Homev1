@@ -128,7 +128,7 @@ export function OnboardingWizard({
     [linkedAccounts],
   );
 
-  const helperNumber = "+18446707482";
+  const helperNumber = "+12014855992";
 
   const partnerInviteUrl = `https://${projectId}.supabase.co/functions/v1/make-server-8c22500c/onboarding/partner-invite/message`;
   const partnerInviteSendUrl = `https://${projectId}.supabase.co/functions/v1/make-server-8c22500c/onboarding/partner-invite/send`;
@@ -774,7 +774,7 @@ export function OnboardingWizard({
                 </div>
               </div>
 
-              <div className="mt-5">
+              <div className="mt-5 space-y-2">
                 <button
                   type="button"
                   onClick={async () => {
@@ -785,7 +785,14 @@ export function OnboardingWizard({
                   className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                   style={{ backgroundColor: selectedAccent }}
                 >
-                  {sendingOtp ? "Sending..." : "Continue"}
+                  {sendingOtp ? "Sending..." : "Send code"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setError(null); setPhase("calendar"); }}
+                  className="w-full rounded-xl px-4 py-3 text-sm font-semibold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Skip for now
                 </button>
               </div>
             </div>
@@ -832,9 +839,17 @@ export function OnboardingWizard({
                     setPhase("phone");
                   }}
                   disabled={verifyingOtp}
-                  className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
+                  className="mt-2 w-full rounded-xl px-4 py-3 text-sm font-semibold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
                 >
                   Change Number
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setError(null); setPhase("calendar"); }}
+                  disabled={verifyingOtp}
+                  className="mt-2 w-full rounded-xl px-4 py-3 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-60"
+                >
+                  Skip verification
                 </button>
               </div>
             </div>

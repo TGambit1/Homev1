@@ -517,7 +517,7 @@ export function CalendarIntegration({
                 📱 Text Homebase at:
               </p>
               <p className="text-xl sm:text-2xl font-bold text-blue-600 mb-1.5 sm:mb-2 break-all">
-                +18446707482
+                +12014855992
               </p>
               <p className="text-xs text-blue-700 mb-2 sm:mb-3">
                 Add your phone numbers below so Homebase can recognize you when you text
@@ -532,7 +532,7 @@ export function CalendarIntegration({
               )}
             </div>
             <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
-              Add phone numbers for both partners to enable SMS texting. Either partner can text <strong className="text-blue-600 break-all">+18446707482</strong> to interact with Homebase and access your shared account.
+              Add phone numbers for both partners to enable SMS texting. Either partner can text <strong className="text-blue-600 break-all">+12014855992</strong> to interact with Homebase and access your shared account.
             </p>
             
             <div className="space-y-3 sm:space-y-4">

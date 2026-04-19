@@ -465,7 +465,8 @@ app.post('/make-server-8c22500c/auth/forgot-password', async (c) => {
       expiresAt,
     });
 
-    const resetUrl = `https://homebaseuxv12.vercel.app?token=${encodeURIComponent(token)}`;
+    const appUrl = Deno.env.get("APP_URL") || Deno.env.get("PUBLIC_APP_URL") || "https://v0-homebase-app-clone.vercel.app";
+    const resetUrl = `${appUrl.replace(/\/$/, "")}?token=${encodeURIComponent(token)}`;
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     const emailFrom = Deno.env.get('EMAIL_FROM');
 

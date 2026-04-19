@@ -1,7 +1,5 @@
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
-import { callGrok, updateUserContext, addSystemGuidance } from "./grok-ai.tsx";
-import { digestRecipeText, addPendingRecipe, generateMealPlan, formatPlanForSMS, addPantryItems } from "./grocery-meal-planner.tsx";
 import {
   callGrok,
   updateUserContext,
@@ -10,6 +8,7 @@ import {
   categorizeIntent,
   extractSmsTellUsAnswer,
 } from "./grok-ai.tsx";
+import { digestRecipeText, addPendingRecipe, generateMealPlan, formatPlanForSMS, addPantryItems } from "./grocery-meal-planner.tsx";
 import * as db from "./db.tsx";
 import { getCalendarImageUrl } from "./calendar-image.tsx";
 import {
@@ -34,7 +33,7 @@ const SNAPTRADE_CLIENT_ID = Deno.env.get("SNAPTRADE_CLIENT_ID") || "";
 const SNAPTRADE_CONSUMER_KEY = Deno.env.get("SNAPTRADE_CONSUMER_KEY") || "";
 
 /** Public URL for the Homebase web app used in SMS replies. */
-const APP_URL = "https://homebaseuxv12.vercel.app/";
+const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("PUBLIC_APP_URL") || "https://v0-homebase-app-clone.vercel.app/";
 
 /** Set to true to send calendar as MMS image(s). When false, calendar is replied with text only. */
 const SEND_CALENDAR_IMAGE_VIA_SMS = false;
@@ -59,10 +58,16 @@ app.post("/make-server-8c22500c/sms/twilio/incoming", async (c) => {
     // Twilio sends data as URL-encoded form data
     const body = await c.req.parseBody();
 
-    const fromNumber = body.From as string;
+    // Strip whatsapp: prefix so DB lookups work for both SMS and WhatsApp sandbox
+    const rawFrom = (body.From as string) || "";
+    const rawTo   = (body.To as string) || "";
+    const isWhatsApp = rawFrom.toLowerCase().startsWith("whatsapp:");
+    const fromNumber = rawFrom.replace(/^whatsapp:/i, "");  // clean number for DB
+    const toNumber   = rawTo.replace(/^whatsapp:/i, "");
+    // replyTo preserves the whatsapp: prefix so sendTwilioSMS knows which channel to use
+    const replyTo = rawFrom;
     const messageText = (body.Body as string) || "";
     const messageSid = body.MessageSid as string;
-    const toNumber = body.To as string;
     const numMedia = parseInt((body.NumMedia as string) || "0", 10);
 
     if (!fromNumber) {
@@ -159,7 +164,7 @@ If you cannot identify any food items, return an empty array: []`,
             const itemPreview = itemNames.slice(0, 4).join(", ") + (itemNames.length > 4 ? ` +${itemNames.length - 4} more` : "");
             const replyText = `Got your list! I see ${itemNames.length} items: ${itemPreview}. Saved to your grocery queue — text "generate my grocery list" to build this week's plan. 🛒`;
 
-            await sendTwilioSMS(fromNumber, replyText);
+            await sendTwilioSMS(replyTo, replyText);
 
             // If there's no text body, we're done
             if (!messageText.trim()) {
@@ -168,7 +173,7 @@ If you cannot identify any food items, return an empty array: []`,
               });
             }
           } else {
-            await sendTwilioSMS(fromNumber, "I got your photo but couldn't make out any grocery items. Try a clearer shot or type the items out.");
+            await sendTwilioSMS(replyTo, "I got your photo but couldn't make out any grocery items. Try a clearer shot or type the items out.");
             if (!messageText.trim()) {
               return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, {
                 'Content-Type': 'text/xml'
@@ -177,7 +182,7 @@ If you cannot identify any food items, return an empty array: []`,
           }
         } catch (imgErr) {
           console.error('[Twilio] MMS processing error:', imgErr);
-          await sendTwilioSMS(fromNumber, "Got your photo but had trouble reading it. You can also just type your grocery items and I'll save them.");
+          await sendTwilioSMS(replyTo, "Got your photo but had trouble reading it. You can also just type your grocery items and I'll save them.");
           if (!messageText.trim()) {
             return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, {
               'Content-Type': 'text/xml'
@@ -236,7 +241,7 @@ If you cannot identify any food items, return an empty array: []`,
         `${APP_URL}\n\n` +
         "Once you've added your phone number in Calendar Settings → SMS Texting, text me again and I'll be ready to help.";
       
-      await sendTwilioSMS(fromNumber, signupMessage);
+      await sendTwilioSMS(replyTo, signupMessage);
       
       // Twilio still expects a 200/TwiML response so it doesn't retry
       return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, {
@@ -289,7 +294,7 @@ If you cannot identify any food items, return an empty array: []`,
         "Here’s your Homebase link:\n" +
         `${APP_URL}\n\n` +
         "Open it to review or update your account, connections, and settings.";
-      await sendTwilioSMS(fromNumber, linkMessage);
+      await sendTwilioSMS(replyTo, linkMessage);
       return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, {
         'Content-Type': 'text/xml'
       });
@@ -324,7 +329,7 @@ If you cannot identify any food items, return an empty array: []`,
         conversationState.isFirstMessage = false;
         conversationState.lastMessageTime = new Date().toISOString();
         await kv.set(stateKey, conversationState);
-        await sendTwilioSMS(fromNumber, response);
+        await sendTwilioSMS(replyTo, response);
         console.log(`[Twilio] request_end requestId=${requestId} conversationId=${conversationId} userId=${hashId(userId)} latencyMs=${Date.now()-startTs} (tell_us)`);
         return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, {
           'Content-Type': 'text/xml'
@@ -368,14 +373,14 @@ If you cannot identify any food items, return an empty array: []`,
           let sent2 = false;
           try {
             const url1 = await getCalendarImageUrl(userId, 'person1', { range: '1w', title: `${dbPerson1Name}'s Calendar` });
-            await sendTwilioSMSWithMedia(fromNumber, `This is your calendar for ${calendarTimeLabel}. ${dbPerson1Name}'s Calendar`, url1);
+            await sendTwilioSMSWithMedia(replyTo, `This is your calendar for ${calendarTimeLabel}. ${dbPerson1Name}'s Calendar`, url1);
             sent1 = true;
           } catch (e1) {
             console.warn('[Twilio] Calendar image for person1 failed:', e1);
           }
           try {
             const url2 = await getCalendarImageUrl(userId, 'person2', { range: '1w', title: `${dbPerson2Name}'s Calendar` });
-            await sendTwilioSMSWithMedia(fromNumber, `This is your calendar for ${calendarTimeLabel}. ${dbPerson2Name}'s Calendar`, url2);
+            await sendTwilioSMSWithMedia(replyTo, `This is your calendar for ${calendarTimeLabel}. ${dbPerson2Name}'s Calendar`, url2);
             sent2 = true;
           } catch (e2) {
             console.warn('[Twilio] Calendar image for person2 failed:', e2);
@@ -389,7 +394,7 @@ If you cannot identify any food items, return an empty array: []`,
             const partnerRole = requestedPerson || 'person1';
             const name = partnerRole === 'person1' ? dbPerson1Name : dbPerson2Name;
             const url = await getCalendarImageUrl(userId, partnerRole, { range: '1w', title: `${name}'s Calendar` });
-            await sendTwilioSMSWithMedia(fromNumber, `This is your calendar for ${calendarTimeLabel}. ${name}'s Calendar`, url);
+            await sendTwilioSMSWithMedia(replyTo, `This is your calendar for ${calendarTimeLabel}. ${name}'s Calendar`, url);
             calendarImageSent = true;
           } catch (imgErr) {
             console.error('[Twilio] Calendar image failed, falling back to text:', imgErr);
@@ -427,14 +432,14 @@ If you cannot identify any food items, return an empty array: []`,
         let sent2 = false;
         try {
           const url1 = await getCalendarImageUrl(userId, 'person1', { range: '1w', title: `${dbPerson1Name}'s Calendar` });
-          await sendTwilioSMSWithMedia(fromNumber, `This is your calendar for ${calendarTimeLabel}. ${dbPerson1Name}'s Calendar`, url1);
+          await sendTwilioSMSWithMedia(replyTo, `This is your calendar for ${calendarTimeLabel}. ${dbPerson1Name}'s Calendar`, url1);
           sent1 = true;
         } catch (e1) {
           console.warn('[Twilio] Calendar image for person1 failed:', e1);
         }
         try {
           const url2 = await getCalendarImageUrl(userId, 'person2', { range: '1w', title: `${dbPerson2Name}'s Calendar` });
-          await sendTwilioSMSWithMedia(fromNumber, `This is your calendar for ${calendarTimeLabel}. ${dbPerson2Name}'s Calendar`, url2);
+          await sendTwilioSMSWithMedia(replyTo, `This is your calendar for ${calendarTimeLabel}. ${dbPerson2Name}'s Calendar`, url2);
           sent2 = true;
         } catch (e2) {
           console.warn('[Twilio] Calendar image for person2 failed:', e2);
@@ -448,7 +453,7 @@ If you cannot identify any food items, return an empty array: []`,
           const partnerRole = requestedPerson || 'person1';
           const name = partnerRole === 'person1' ? dbPerson1Name : dbPerson2Name;
           const url = await getCalendarImageUrl(userId, partnerRole, { range: '1w', title: `${name}'s Calendar` });
-          await sendTwilioSMSWithMedia(fromNumber, `This is your calendar for ${calendarTimeLabel}. ${name}'s Calendar`, url);
+          await sendTwilioSMSWithMedia(replyTo, `This is your calendar for ${calendarTimeLabel}. ${name}'s Calendar`, url);
           calendarImageSent = true;
         } catch (imgErr) {
           console.error('[Twilio] Calendar image failed, falling back to text:', imgErr);
@@ -486,7 +491,7 @@ If you cannot identify any food items, return an empty array: []`,
         if (!accounts || accounts.length === 0) {
           console.log('[Twilio] No linked accounts for financial/spending intent');
           await sendTwilioSMS(
-            fromNumber,
+            replyTo,
             "I don’t see any bank or card accounts connected yet.\n\n" +
               "Open Homebase, go to Settings → Connections, and link at least one account so I can talk about your spending and balances.\n\n" +
               `You can open the app here: ${APP_URL}`
@@ -787,7 +792,7 @@ If you cannot identify any food items, return an empty array: []`,
     await kv.set(stateKey, conversationState);
 
     // Send SMS response via Twilio
-    await sendTwilioSMS(fromNumber, response);
+    await sendTwilioSMS(replyTo, response);
     console.log(`[Twilio] request_end requestId=${requestId} conversationId=${conversationId} userId=${hashId(userId)} latencyMs=${Date.now()-startTs}`);
     
     // Twilio expects TwiML response
@@ -1747,12 +1752,12 @@ async function processMessageWithGrok(
         console.log(`[Twilio] Async meal plan generation started for ${fromNumber}`);
         const result = await generateMealPlan(recipeIdea);
         const smsText = formatPlanForSMS(result);
-        await sendTwilioSMS(fromNumber, smsText);
+        await sendTwilioSMS(replyTo, smsText);
         console.log(`[Twilio] Meal plan sent to ${fromNumber}`);
       } catch (err) {
         console.error('[Twilio] Async plan generation failed:', err);
         try {
-          await sendTwilioSMS(fromNumber, "Sorry, had trouble generating your plan. Try again in a moment.");
+          await sendTwilioSMS(replyTo, "Sorry, had trouble generating your plan. Try again in a moment.");
         } catch { /* ignore secondary failure */ }
       }
     })();
@@ -1868,28 +1873,29 @@ async function processMessageWithGrok(
   }
 }
 
-// Send SMS via Twilio
+// Send SMS via Twilio (also handles WhatsApp when toNumber starts with "whatsapp:")
 export async function sendTwilioSMS(toNumber: string, message: string): Promise<void> {
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
   const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
-  const fromNumber = Deno.env.get('TWILIO_FROM_NUMBER');
+  const smsFromNumber = Deno.env.get('TWILIO_FROM_NUMBER');
 
-  if (!accountSid || !authToken || !fromNumber) {
+  if (!accountSid || !authToken || !smsFromNumber) {
     console.error('[Twilio] Missing credentials');
     throw new Error('Twilio credentials not configured');
   }
 
-  // Ensure phone number is properly formatted
-  const formattedToNumber = toNumber.startsWith('+') ? toNumber : `+${toNumber.replace(/[^\d]/g, '')}`;
+  const isWhatsAppTo = toNumber.toLowerCase().startsWith("whatsapp:");
+  const cleanTo = toNumber.replace(/^whatsapp:/i, "");
+  const formattedCleanTo = cleanTo.startsWith('+') ? cleanTo : `+${cleanTo.replace(/[^\d]/g, '')}`;
+
+  // WhatsApp sandbox From must be whatsapp:+14155238886; SMS uses TWILIO_FROM_NUMBER
+  const From = isWhatsAppTo ? "whatsapp:+14155238886" : smsFromNumber;
+  const To   = isWhatsAppTo ? `whatsapp:${formattedCleanTo}` : formattedCleanTo;
 
   // Twilio API uses Basic Auth
   const authHeader = `Basic ${btoa(`${accountSid}:${authToken}`)}`;
 
-  const payload = new URLSearchParams({
-    From: fromNumber,
-    To: formattedToNumber,
-    Body: message,
-  });
+  const payload = new URLSearchParams({ From, To, Body: message });
 
   const response = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -1913,25 +1919,26 @@ export async function sendTwilioSMS(toNumber: string, message: string): Promise<
   console.log(`[Twilio] twilio_send status=${response.status} sid=${result.sid}`);
 }
 
-// Send MMS via Twilio (SMS with image/media)
+// Send MMS via Twilio (SMS with image/media). Also handles WhatsApp channel.
 export async function sendTwilioSMSWithMedia(toNumber: string, body: string | null, mediaUrl: string): Promise<void> {
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
   const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
-  const fromNumber = Deno.env.get('TWILIO_FROM_NUMBER');
+  const smsFromNumber = Deno.env.get('TWILIO_FROM_NUMBER');
 
-  if (!accountSid || !authToken || !fromNumber) {
+  if (!accountSid || !authToken || !smsFromNumber) {
     console.error('[Twilio] Missing credentials');
     throw new Error('Twilio credentials not configured');
   }
 
-  const formattedToNumber = toNumber.startsWith('+') ? toNumber : `+${toNumber.replace(/[^\d]/g, '')}`;
+  const isWhatsAppTo = toNumber.toLowerCase().startsWith("whatsapp:");
+  const cleanTo = toNumber.replace(/^whatsapp:/i, "");
+  const formattedCleanTo = cleanTo.startsWith('+') ? cleanTo : `+${cleanTo.replace(/[^\d]/g, '')}`;
+
+  const From = isWhatsAppTo ? "whatsapp:+14155238886" : smsFromNumber;
+  const To   = isWhatsAppTo ? `whatsapp:${formattedCleanTo}` : formattedCleanTo;
 
   const authHeader = `Basic ${btoa(`${accountSid}:${authToken}`)}`;
-  const payload = new URLSearchParams({
-    From: fromNumber,
-    To: formattedToNumber,
-    MediaUrl: mediaUrl,
-  });
+  const payload = new URLSearchParams({ From, To, MediaUrl: mediaUrl });
   if (body != null && body !== '') {
     payload.set('Body', body);
   }
